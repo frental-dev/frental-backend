@@ -1,11 +1,18 @@
-const { Queue } = require('bullmq');
+const IORedis = require("ioredis");
+const { Queue } = require("bullmq");
 
-const connection = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379', 10),
-};
+// Local Docker Redis: plain host/port, no auth.
+// Render/Upstash/managed Redis: REDIS_URL includes auth + TLS (redis:// or rediss://).
+// BullMQ requires maxRetriesPerRequest: null when handed a pre-built ioredis instance.
+const connection = process.env.REDIS_URL
+  ? new IORedis(process.env.REDIS_URL, { maxRetriesPerRequest: null })
+  : new IORedis({
+      host: process.env.REDIS_HOST || "localhost",
+      port: parseInt(process.env.REDIS_PORT || "6379", 10),
+      maxRetriesPerRequest: null,
+    });
 
-const mediaQueue = new Queue('media-processing', { connection });
+const mediaQueue = new Queue("media-processing", { connection });
 
 /**
  * Enqueue a media record for post-upload processing:
@@ -16,14 +23,14 @@ const mediaQueue = new Queue('media-processing', { connection });
  */
 async function enqueueMediaProcessing(mediaId) {
   await mediaQueue.add(
-    'process-media',
+    "process-media",
     { mediaId },
     {
       attempts: 3,
-      backoff: { type: 'exponential', delay: 5000 },
+      backoff: { type: "exponential", delay: 5000 },
       removeOnComplete: 500,
       removeOnFail: 1000,
-    }
+    },
   );
 }
 
