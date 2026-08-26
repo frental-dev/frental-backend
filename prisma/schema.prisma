@@ -1,0 +1,249 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------
+
+enum SubscriptionTier {
+  FREE
+  PRO
+  AGENCY
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  TAKEN
+  HOLD
+}
+
+enum HouseType {
+  BEDSITTER
+  ONE_BEDROOM
+  TWO_BEDROOM
+  THREE_BEDROOM
+  MAISONETTE
+  BUNGALOW
+  PLOT
+  COMMERCIAL
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum MediaStatus {
+  PROCESSING
+  ACTIVE
+  ARCHIVED
+  DELETED
+}
+
+enum StorageProvider {
+  CLOUDINARY
+  MINIO
+}
+
+enum ClientStatus {
+  NEW
+  VIEWING_SCHEDULED
+  CLOSED
+  LOST
+}
+
+enum ViewingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum LeadSource {
+  WHATSAPP
+  MARKETPLACE
+  TIKTOK
+  INSTAGRAM
+  FACEBOOK
+  DIRECT
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  DEAD
+}
+
+// ---------------------------------------------------------
+// MODELS
+// ---------------------------------------------------------
+
+model Agent {
+  id               String           @id @default(cuid())
+  name             String
+  phone            String           @unique
+  whatsapp         String?
+  email            String?          @unique
+  passwordHash     String
+  publicSlug       String           @unique
+  bio              String?
+  avatarUrl        String?
+  subscriptionTier SubscriptionTier @default(FREE)
+  isVerified       Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  properties Property[]
+  clients    Client[]
+  viewings   Viewing[]
+  leads      Lead[]
+
+  @@index([publicSlug])
+}
+
+model Property {
+  id            String         @id @default(cuid())
+  agentId       String
+  agent         Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  title         String
+  description   String?
+  rent          Int
+  deposit       Int
+  houseType     HouseType
+  estate        String
+  city          String         @default("Nairobi")
+  features      String[]       @default([])
+
+  // Public-facing approximate location (always visible)
+  approxLat     Float?
+  approxLng     Float?
+
+  // Exact location — only exposed after a viewing is confirmed
+  exactLat      Float?
+  exactLng      Float?
+  exactAddress  String?
+
+  status        PropertyStatus @default(AVAILABLE)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  media    Media[]
+  viewings Viewing[]
+  leads    Lead[]
+
+  @@index([agentId])
+  @@index([status])
+  @@index([estate])
+  @@index([houseType])
+}
+
+model Media {
+  id               String      @id @default(cuid())
+  propertyId       String
+  property         Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  type             MediaType
+  status           MediaStatus @default(PROCESSING)
+  storageProvider  StorageProvider?  // set once processing completes: which provider is actually serving this file
+
+  // Raw file location in MinIO (source of truth for video, and originals for images)
+  minioBucket      String
+  minioKey         String
+
+  // Optional Cloudinary-derived assets (thumbnails / transformed images)
+  cloudinaryId     String?
+  cloudinaryUrl    String?
+  thumbnailUrl     String?
+
+  sizeBytes        Int?
+  durationSeconds   Int?        // for videos
+  sortOrder        Int         @default(0)
+
+  createdAt        DateTime    @default(now())
+  archivedAt       DateTime?
+  expiresAt        DateTime?   // scheduled deletion date (media lifecycle policy)
+
+  @@index([propertyId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model Client {
+  id          String       @id @default(cuid())
+  agentId     String
+  agent       Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  name        String
+  phone       String
+  budgetMin   Int?
+  budgetMax   Int?
+  houseType   HouseType?
+  preferredEstate String?
+  status      ClientStatus @default(NEW)
+  notes       String?
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  viewings Viewing[]
+  leads    Lead[]
+
+  @@index([agentId])
+  @@index([status])
+}
+
+model Viewing {
+  id          String        @id @default(cuid())
+  agentId     String
+  agent       Agent         @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  clientId    String
+  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  propertyId  String
+  property    Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  scheduledAt DateTime
+  status      ViewingStatus @default(SCHEDULED)
+  notes       String?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([agentId])
+  @@index([propertyId])
+  @@index([scheduledAt])
+}
+
+model Lead {
+  id         String     @id @default(cuid())
+  agentId    String
+  agent      Agent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  propertyId String?
+  property   Property?  @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  clientId   String?
+  client     Client?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  source     LeadSource
+  status     LeadStatus @default(NEW)
+  name       String?
+  phone      String?
+  message    String?
+
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([agentId])
+  @@index([status])
+  @@index([source])
+}

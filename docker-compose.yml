@@ -1,0 +1,25 @@
+services:
+  minio:
+    image: minio/minio
+    container_name: frental-minio
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Web console
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: wailer@2026
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+
+  redis:
+    image: redis:7
+    container_name: frental-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+volumes:
+  minio-data:
+  redis-data:
