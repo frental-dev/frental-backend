@@ -1,0 +1,345 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------
+
+enum SubscriptionTier {
+  FREE
+  PRO
+  AGENCY
+}
+
+enum AgentRole {
+  AGENT
+  ADMIN
+}
+
+enum AgentStatus {
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum AuthEventType {
+  SIGNUP
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+  LOGOUT_ALL
+  TOKEN_REFRESHED
+  PASSWORD_CHANGED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET
+  EMAIL_VERIFIED
+  EMAIL_CHANGE_REQUESTED
+  EMAIL_CHANGED
+  ACCOUNT_SUSPENDED
+  ACCOUNT_REACTIVATED
+  GOOGLE_SIGNIN
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  TAKEN
+  HOLD
+}
+
+enum HouseType {
+  BEDSITTER
+  ONE_BEDROOM
+  TWO_BEDROOM
+  THREE_BEDROOM
+  MAISONETTE
+  BUNGALOW
+  PLOT
+  COMMERCIAL
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum MediaStatus {
+  PROCESSING
+  ACTIVE
+  ARCHIVED
+  DELETED
+}
+
+enum StorageProvider {
+  CLOUDINARY
+  MINIO
+}
+
+enum ClientStatus {
+  NEW
+  VIEWING_SCHEDULED
+  CLOSED
+  LOST
+}
+
+enum ViewingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum LeadSource {
+  WHATSAPP
+  MARKETPLACE
+  TIKTOK
+  INSTAGRAM
+  FACEBOOK
+  DIRECT
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  DEAD
+}
+
+// ---------------------------------------------------------
+// MODELS
+// ---------------------------------------------------------
+
+model Agent {
+  id               String           @id @default(cuid())
+  name             String
+  phone            String?          @unique // optional now — Google sign-in doesn't provide a phone number
+  whatsapp         String?
+  email            String?          @unique
+  emailVerified    Boolean          @default(false)
+  // Verification/reset tokens store a SHA-256 HASH of the token, never the
+  // raw value — the raw token only ever exists in the emailed link, never at
+  // rest in the database. See src/utils/tokens.js.
+  emailVerificationToken   String?  @unique
+  emailVerificationExpires DateTime?
+  passwordResetToken       String?  @unique
+  passwordResetExpires     DateTime?
+  // Change-email uses a separate pending-email + token pair rather than
+  // overwriting `email` immediately — the old email stays authoritative
+  // until the NEW address is confirmed.
+  pendingEmail             String?
+  pendingEmailToken        String?  @unique
+  pendingEmailExpires      DateTime?
+
+  passwordHash     String?          // nullable — a Google-only account has no password until it sets one
+  googleId         String?          @unique
+
+  publicSlug       String           @unique
+  bio              String?
+  avatarUrl        String?
+  subscriptionTier SubscriptionTier @default(FREE)
+  // isVerified: a trust/professional-verification badge shown publicly (e.g.
+  // admin-confirmed identity) — distinct from emailVerified, which only
+  // confirms the agent owns the email address on file.
+  isVerified       Boolean          @default(false)
+
+  role             AgentRole        @default(AGENT)
+  status           AgentStatus      @default(ACTIVE)
+
+  failedLoginAttempts Int           @default(0)
+  lockedUntil         DateTime?
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  properties    Property[]
+  clients       Client[]
+  viewings      Viewing[]
+  leads         Lead[]
+  refreshTokens RefreshToken[]
+  authEvents    AuthEvent[]
+
+  @@index([publicSlug])
+}
+
+model RefreshToken {
+  id         String    @id @default(cuid())
+  agentId    String
+  agent      Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  tokenHash  String    @unique // SHA-256 hash of the raw refresh token — raw value never stored
+  userAgent  String?
+  ipAddress  String?
+
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([agentId])
+  @@index([tokenHash])
+}
+
+model AuthEvent {
+  id        String        @id @default(cuid())
+  agentId   String?
+  agent     Agent?        @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  type      AuthEventType
+  metadata  Json?
+  ipAddress String?
+  createdAt DateTime      @default(now())
+
+  @@index([agentId])
+  @@index([type])
+}
+
+model Property {
+  id            String         @id @default(cuid())
+  agentId       String
+  agent         Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  title         String
+  description   String?
+  rent          Int
+  deposit       Int
+  houseType     HouseType
+  estate        String
+  city          String         @default("Nairobi")
+  features      String[]       @default([])
+
+  // Structured counts, distinct from `features` — these are what the future
+  // matching engine filters/scores on. Nullable because PLOT and COMMERCIAL
+  // house types don't have bedrooms/bathrooms.
+  bedrooms      Int?
+  bathrooms     Int?
+
+  // Public-facing approximate location (always visible)
+  approxLat     Float?
+  approxLng     Float?
+
+  // Exact location — only exposed after a viewing is confirmed
+  exactLat      Float?
+  exactLng      Float?
+  exactAddress  String?
+
+  status        PropertyStatus @default(AVAILABLE)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  media    Media[]
+  viewings Viewing[]
+  leads    Lead[]
+
+  @@index([agentId])
+  @@index([status])
+  @@index([estate])
+  @@index([houseType])
+}
+
+model Media {
+  id               String      @id @default(cuid())
+  propertyId       String
+  property         Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  type             MediaType
+  status           MediaStatus @default(PROCESSING)
+  storageProvider  StorageProvider?  // set once processing completes: which provider is actually serving this file
+
+  // Raw file location in MinIO (source of truth for video, and originals for images)
+  minioBucket      String
+  minioKey         String
+
+  // Optional Cloudinary-derived assets (thumbnails / transformed images)
+  cloudinaryId     String?
+  cloudinaryUrl    String?
+  thumbnailUrl     String?
+
+  sizeBytes        Int?
+  durationSeconds   Int?        // for videos
+  sortOrder        Int         @default(0)
+
+  createdAt        DateTime    @default(now())
+  archivedAt       DateTime?
+  expiresAt        DateTime?   // scheduled deletion date (media lifecycle policy)
+
+  @@index([propertyId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model Client {
+  id          String       @id @default(cuid())
+  agentId     String
+  agent       Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  name        String
+  phone       String
+  budgetMin   Int?
+  budgetMax   Int?
+  houseType   HouseType?
+  preferredEstate String?
+  status      ClientStatus @default(NEW)
+  notes       String?
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  viewings Viewing[]
+  leads    Lead[]
+
+  @@index([agentId])
+  @@index([status])
+}
+
+model Viewing {
+  id          String        @id @default(cuid())
+  agentId     String
+  agent       Agent         @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  clientId    String
+  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  propertyId  String
+  property    Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  scheduledAt DateTime
+  status      ViewingStatus @default(SCHEDULED)
+  notes       String?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([agentId])
+  @@index([propertyId])
+  @@index([scheduledAt])
+}
+
+model Lead {
+  id         String     @id @default(cuid())
+  agentId    String
+  agent      Agent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  propertyId String?
+  property   Property?  @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  clientId   String?
+  client     Client?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  source     LeadSource
+  status     LeadStatus @default(NEW)
+  name       String?
+  phone      String?
+  message    String?
+
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([agentId])
+  @@index([status])
+  @@index([source])
+}
