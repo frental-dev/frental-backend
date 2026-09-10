@@ -124,8 +124,11 @@ model Agent {
   // Verification/reset tokens store a SHA-256 HASH of the token, never the
   // raw value — the raw token only ever exists in the emailed link, never at
   // rest in the database. See src/utils/tokens.js.
+  // emailVerificationToken   String?  @unique
+  // emailVerificationExpires DateTime?
   emailVerificationToken   String?  @unique
-  emailVerificationExpires DateTime?
+emailVerificationExpires DateTime?
+emailVerificationAttempts Int     @default(0)
   passwordResetToken       String?  @unique
   passwordResetExpires     DateTime?
   // Change-email uses a separate pending-email + token pair rather than

@@ -1,4 +1,4 @@
-const rateLimit = require('express-rate-limit');
+const rateLimit = require("express-rate-limit");
 
 // In-memory store — correct for a single Render instance. If this ever runs
 // as multiple instances/dynos, each instance tracks its own counts
@@ -7,7 +7,9 @@ const rateLimit = require('express-rate-limit');
 // same Redis instance already used for BullMQ) — not needed at current scale.
 
 const jsonRateLimitHandler = (req, res) => {
-  res.status(429).json({ error: 'Too many requests — please try again later.' });
+  res
+    .status(429)
+    .json({ error: "Too many requests — please try again later." });
 };
 
 const signupLimiter = rateLimit({
@@ -46,4 +48,19 @@ const resendVerificationLimiter = rateLimit({
   handler: jsonRateLimitHandler,
 });
 
-module.exports = { signupLimiter, loginLimiter, passwordResetLimiter, resendVerificationLimiter };
+const verifyCodeLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.agent?.id || req.ip,
+  handler: jsonRateLimitHandler,
+});
+
+module.exports = {
+  signupLimiter,
+  loginLimiter,
+  passwordResetLimiter,
+  resendVerificationLimiter,
+  verifyCodeLimiter,
+};

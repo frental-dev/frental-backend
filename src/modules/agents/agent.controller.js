@@ -1,4 +1,4 @@
-const agentService = require('./agent.service');
+const agentService = require("./agent.service");
 
 async function signup(req, res, next) {
   try {
@@ -29,7 +29,10 @@ async function googleAuth(req, res, next) {
 
 async function refresh(req, res, next) {
   try {
-    const result = await agentService.refreshAccessToken(req.body.refreshToken, req);
+    const result = await agentService.refreshAccessToken(
+      req.body.refreshToken,
+      req,
+    );
     res.json(result);
   } catch (err) {
     next(err);
@@ -40,7 +43,7 @@ async function logout(req, res, next) {
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) {
-      return res.status(400).json({ error: 'refreshToken is required' });
+      return res.status(400).json({ error: "refreshToken is required" });
     }
     const result = await agentService.logout(refreshToken, req);
     res.json(result);
@@ -69,7 +72,10 @@ async function listSessions(req, res, next) {
 
 async function revokeSession(req, res, next) {
   try {
-    const result = await agentService.revokeSession(req.agent.id, req.params.sessionId);
+    const result = await agentService.revokeSession(
+      req.agent.id,
+      req.params.sessionId,
+    );
     res.json(result);
   } catch (err) {
     next(err);
@@ -106,7 +112,11 @@ async function updateProfile(req, res, next) {
 
 async function changePassword(req, res, next) {
   try {
-    const result = await agentService.changePassword(req.agent.id, req.body, req);
+    const result = await agentService.changePassword(
+      req.agent.id,
+      req.body,
+      req,
+    );
     res.json(result);
   } catch (err) {
     next(err);
@@ -124,7 +134,10 @@ async function resendVerification(req, res, next) {
 
 async function requestEmailChange(req, res, next) {
   try {
-    const result = await agentService.requestEmailChange(req.agent.id, req.body);
+    const result = await agentService.requestEmailChange(
+      req.agent.id,
+      req.body,
+    );
     res.json(result);
   } catch (err) {
     next(err);
@@ -152,10 +165,16 @@ async function resetPassword(req, res, next) {
 async function setAccountStatus(req, res, next) {
   try {
     const { status } = req.body;
-    if (!['ACTIVE', 'SUSPENDED', 'DISABLED'].includes(status)) {
-      return res.status(400).json({ error: 'status must be ACTIVE, SUSPENDED, or DISABLED' });
+    if (!["ACTIVE", "SUSPENDED", "DISABLED"].includes(status)) {
+      return res
+        .status(400)
+        .json({ error: "status must be ACTIVE, SUSPENDED, or DISABLED" });
     }
-    const agent = await agentService.setAccountStatus(req.params.agentId, status, req);
+    const agent = await agentService.setAccountStatus(
+      req.params.agentId,
+      status,
+      req,
+    );
     res.json({ agent });
   } catch (err) {
     next(err);
@@ -171,7 +190,7 @@ function statusPage({ title, message, ok }) {
       <head><meta charset="utf-8"><title>${title}</title></head>
       <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9fafb;">
         <div style="text-align: center; max-width: 400px; padding: 32px;">
-          <div style="font-size: 40px;">${ok ? '✅' : '⚠️'}</div>
+          <div style="font-size: 40px;">${ok ? "✅" : "⚠️"}</div>
           <h2 style="color: #111827; margin-top: 16px;">${title}</h2>
           <p style="color: #6b7280;">${message}</p>
         </div>
@@ -180,36 +199,73 @@ function statusPage({ title, message, ok }) {
   `;
 }
 
-async function verifyEmail(req, res) {
-  const { token } = req.query;
-  if (!token) {
-    return res.status(400).send(statusPage({ title: 'Missing verification token', message: 'This link is missing its code.', ok: false }));
-  }
+// async function verifyEmail(req, res) {
+//   const { token } = req.query;
+//   if (!token) {
+//     return res.status(400).send(statusPage({ title: 'Missing verification token', message: 'This link is missing its code.', ok: false }));
+//   }
+//   try {
+//     await agentService.verifyEmailToken(token, req);
+//     res.send(statusPage({ title: 'Email verified', message: 'You can close this page and return to the app.', ok: true }));
+//   } catch (err) {
+//     res.status(err.statusCode || 400).send(statusPage({ title: 'Verification failed', message: err.message, ok: false }));
+//   }
+// }
+async function verifyEmailCode(req, res, next) {
   try {
-    await agentService.verifyEmailToken(token, req);
-    res.send(statusPage({ title: 'Email verified', message: 'You can close this page and return to the app.', ok: true }));
+    const result = await agentService.verifyEmailCode(
+      req.agent.id,
+      req.body.code,
+    );
+    res.json(result);
   } catch (err) {
-    res.status(err.statusCode || 400).send(statusPage({ title: 'Verification failed', message: err.message, ok: false }));
+    next(err);
   }
 }
 
 async function confirmEmailChange(req, res) {
   const { token } = req.query;
   if (!token) {
-    return res.status(400).send(statusPage({ title: 'Missing confirmation token', message: 'This link is missing its code.', ok: false }));
+    return res
+      .status(400)
+      .send(
+        statusPage({
+          title: "Missing confirmation token",
+          message: "This link is missing its code.",
+          ok: false,
+        }),
+      );
   }
   try {
     await agentService.confirmEmailChange(token, req);
-    res.send(statusPage({ title: 'Email updated', message: 'Your new email is confirmed. You can close this page.', ok: true }));
+    res.send(
+      statusPage({
+        title: "Email updated",
+        message: "Your new email is confirmed. You can close this page.",
+        ok: true,
+      }),
+    );
   } catch (err) {
-    res.status(err.statusCode || 400).send(statusPage({ title: 'Confirmation failed', message: err.message, ok: false }));
+    res
+      .status(err.statusCode || 400)
+      .send(
+        statusPage({
+          title: "Confirmation failed",
+          message: err.message,
+          ok: false,
+        }),
+      );
   }
 }
 
 function resetPasswordPage(req, res) {
   const { token } = req.query;
   if (!token) {
-    return res.status(400).send('<p style="font-family:sans-serif;text-align:center;margin-top:80px;">Missing reset token.</p>');
+    return res
+      .status(400)
+      .send(
+        '<p style="font-family:sans-serif;text-align:center;margin-top:80px;">Missing reset token.</p>',
+      );
   }
 
   res.send(`
@@ -275,7 +331,7 @@ module.exports = {
   forgotPassword,
   resetPassword,
   setAccountStatus,
-  verifyEmail,
+  verifyEmailCode,
   confirmEmailChange,
   resetPasswordPage,
 };

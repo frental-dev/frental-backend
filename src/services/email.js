@@ -3,26 +3,31 @@
  * fetch (Node 18+), no extra dependency needed.
  * Docs: https://developers.brevo.com/reference/sendtransacemail
  */
-const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
 async function sendEmail({ to, toName, subject, html }) {
   if (!process.env.BREVO_API_KEY) {
     // Don't crash the request that triggered this — email delivery failing
     // should never block signup/login. Log loudly so it's caught in review.
-    console.error('[email] BREVO_API_KEY is not set — email not sent:', subject, 'to', to);
+    console.error(
+      "[email] BREVO_API_KEY is not set — email not sent:",
+      subject,
+      "to",
+      to,
+    );
     return { sent: false };
   }
 
   const res = await fetch(BREVO_API_URL, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'api-key': process.env.BREVO_API_KEY,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
+      "api-key": process.env.BREVO_API_KEY,
+      "Content-Type": "application/json",
+      Accept: "application/json",
     },
     body: JSON.stringify({
       sender: {
-        name: process.env.BREVO_SENDER_NAME || 'Frental',
+        name: process.env.BREVO_SENDER_NAME || "Frental",
         email: process.env.BREVO_SENDER_EMAIL,
       },
       to: [{ email: to, name: toName }],
@@ -32,7 +37,7 @@ async function sendEmail({ to, toName, subject, html }) {
   });
 
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
+    const body = await res.text().catch(() => "");
     console.error(`[email] Brevo send failed (${res.status}) to ${to}:`, body);
     return { sent: false };
   }
@@ -40,29 +45,28 @@ async function sendEmail({ to, toName, subject, html }) {
   return { sent: true };
 }
 
-function verificationEmailHtml(agent, verifyUrl) {
+function verificationEmailHtml(agent, code) {
   return `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
       <h2 style="color: #186339;">Verify your Frental email</h2>
       <p>Hi ${agent.name},</p>
-      <p>Confirm this is your email address to finish setting up your Frental agent account.</p>
-      <p style="margin: 32px 0;">
-        <a href="${verifyUrl}" style="background: #186339; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
-          Verify email
-        </a>
+      <p>Enter this code in the app to confirm your email address:</p>
+      <p style="margin: 32px 0; text-align: center;">
+        <span style="display: inline-block; background: #f0f9f2; color: #186339; font-size: 32px; font-weight: 700; letter-spacing: 8px; padding: 16px 24px; border-radius: 12px;">
+          ${code}
+        </span>
       </p>
-      <p style="color: #666; font-size: 13px;">This link expires in 24 hours. If you didn't create a Frental account, you can ignore this email.</p>
+      <p style="color: #666; font-size: 13px;">This code expires in 15 minutes. If you didn't create a Frental account, you can ignore this email.</p>
     </div>
   `;
 }
 
-async function sendVerificationEmail(agent, token) {
-  const verifyUrl = `${process.env.API_BASE_URL}/api/agents/verify-email?token=${token}`;
+async function sendVerificationEmail(agent, code) {
   return sendEmail({
     to: agent.email,
     toName: agent.name,
-    subject: 'Verify your Frental email',
-    html: verificationEmailHtml(agent, verifyUrl),
+    subject: "Your Frental verification code",
+    html: verificationEmailHtml(agent, code),
   });
 }
 
@@ -87,7 +91,7 @@ async function sendPasswordResetEmail(agent, token) {
   return sendEmail({
     to: agent.email,
     toName: agent.name,
-    subject: 'Reset your Frental password',
+    subject: "Reset your Frental password",
     html: passwordResetEmailHtml(agent, resetUrl),
   });
 }
@@ -113,7 +117,7 @@ async function sendChangeEmailConfirmation(agent, token, newEmail) {
   return sendEmail({
     to: newEmail,
     toName: agent.name,
-    subject: 'Confirm your new Frental email',
+    subject: "Confirm your new Frental email",
     html: changeEmailConfirmationHtml(agent, confirmUrl, newEmail),
   });
 }
