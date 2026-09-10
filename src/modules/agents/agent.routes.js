@@ -12,12 +12,14 @@ const {
   changeEmailSchema,
   googleAuthSchema,
   refreshSchema,
+  verifyEmailCodeSchema,
 } = require("../../validation/agent.schemas");
 const {
   signupLimiter,
   loginLimiter,
   passwordResetLimiter,
   resendVerificationLimiter,
+  verifyCodeLimiter,
 } = require("../../middleware/rateLimit");
 
 const router = express.Router();
