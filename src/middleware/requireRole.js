@@ -1,8 +1,3 @@
-/**
- * Restricts a route to a specific role. Must run after requireAuth, which
- * attaches req.agent.role. Answers "what are you allowed to do", separate
- * from requireAuth's "who are you".
- */
 function requireRole(role) {
   return (req, res, next) => {
     if (!req.agent) {

@@ -1,9 +1,3 @@
-/**
- * Validates req.body against a Zod schema. On success, replaces req.body
- * with the parsed (and type-coerced/trimmed) result. On failure, responds
- * 400 with a field-level error breakdown rather than a generic message —
- * cheap to give the client something actionable.
- */
 function validateBody(schema) {
   return (req, res, next) => {
     const result = schema.safeParse(req.body);

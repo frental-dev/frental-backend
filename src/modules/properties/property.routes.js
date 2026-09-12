@@ -3,9 +3,6 @@ const controller = require('./property.controller');
 const requireAuth = require('../../middleware/auth');
 
 const router = express.Router();
-
-// All property management routes are agent-authenticated.
-// Public discovery of properties happens through the Marketplace module instead.
 router.use('/properties', requireAuth);
 
 router.post('/properties', controller.create);

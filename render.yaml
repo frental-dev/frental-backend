@@ -38,8 +38,6 @@ services:
         value: Frental
       - key: GOOGLE_CLIENT_ID
         sync: false
-      - key: API_BASE_URL
-        sync: false
       - key: REDIS_URL
         fromService:
           name: frental-redis

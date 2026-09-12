@@ -1,4 +1,4 @@
-const agentService = require("./agent.service");
+const agentService = require('./agent.service');
 
 async function signup(req, res, next) {
   try {
@@ -29,10 +29,7 @@ async function googleAuth(req, res, next) {
 
 async function refresh(req, res, next) {
   try {
-    const result = await agentService.refreshAccessToken(
-      req.body.refreshToken,
-      req,
-    );
+    const result = await agentService.refreshAccessToken(req.body.refreshToken, req);
     res.json(result);
   } catch (err) {
     next(err);
@@ -43,7 +40,7 @@ async function logout(req, res, next) {
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) {
-      return res.status(400).json({ error: "refreshToken is required" });
+      return res.status(400).json({ error: 'refreshToken is required' });
     }
     const result = await agentService.logout(refreshToken, req);
     res.json(result);
@@ -72,10 +69,7 @@ async function listSessions(req, res, next) {
 
 async function revokeSession(req, res, next) {
   try {
-    const result = await agentService.revokeSession(
-      req.agent.id,
-      req.params.sessionId,
-    );
+    const result = await agentService.revokeSession(req.agent.id, req.params.sessionId);
     res.json(result);
   } catch (err) {
     next(err);
@@ -112,11 +106,17 @@ async function updateProfile(req, res, next) {
 
 async function changePassword(req, res, next) {
   try {
-    const result = await agentService.changePassword(
-      req.agent.id,
-      req.body,
-      req,
-    );
+    const result = await agentService.changePassword(req.agent.id, req.body, req);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Email verification is now a JSON endpoint (6-digit code), not an HTML page.
+async function verifyEmailCode(req, res, next) {
+  try {
+    const result = await agentService.verifyEmailCode(req.agent.id, req.body.code, req);
     res.json(result);
   } catch (err) {
     next(err);
@@ -134,10 +134,7 @@ async function resendVerification(req, res, next) {
 
 async function requestEmailChange(req, res, next) {
   try {
-    const result = await agentService.requestEmailChange(
-      req.agent.id,
-      req.body,
-    );
+    const result = await agentService.requestEmailChange(req.agent.id, req.body);
     res.json(result);
   } catch (err) {
     next(err);
@@ -165,152 +162,25 @@ async function resetPassword(req, res, next) {
 async function setAccountStatus(req, res, next) {
   try {
     const { status } = req.body;
-    if (!["ACTIVE", "SUSPENDED", "DISABLED"].includes(status)) {
-      return res
-        .status(400)
-        .json({ error: "status must be ACTIVE, SUSPENDED, or DISABLED" });
+    if (!['ACTIVE', 'SUSPENDED', 'DISABLED'].includes(status)) {
+      return res.status(400).json({ error: 'status must be ACTIVE, SUSPENDED, or DISABLED' });
     }
-    const agent = await agentService.setAccountStatus(
-      req.params.agentId,
-      status,
-      req,
-    );
+    const agent = await agentService.setAccountStatus(req.params.agentId, status, req);
     res.json({ agent });
   } catch (err) {
     next(err);
   }
 }
 
-// --- HTML pages, opened from links inside emails, not called as JSON API ---
-
-function statusPage({ title, message, ok }) {
-  return `
-    <!doctype html>
-    <html>
-      <head><meta charset="utf-8"><title>${title}</title></head>
-      <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9fafb;">
-        <div style="text-align: center; max-width: 400px; padding: 32px;">
-          <div style="font-size: 40px;">${ok ? "✅" : "⚠️"}</div>
-          <h2 style="color: #111827; margin-top: 16px;">${title}</h2>
-          <p style="color: #6b7280;">${message}</p>
-        </div>
-      </body>
-    </html>
-  `;
-}
-
-// async function verifyEmail(req, res) {
-//   const { token } = req.query;
-//   if (!token) {
-//     return res.status(400).send(statusPage({ title: 'Missing verification token', message: 'This link is missing its code.', ok: false }));
-//   }
-//   try {
-//     await agentService.verifyEmailToken(token, req);
-//     res.send(statusPage({ title: 'Email verified', message: 'You can close this page and return to the app.', ok: true }));
-//   } catch (err) {
-//     res.status(err.statusCode || 400).send(statusPage({ title: 'Verification failed', message: err.message, ok: false }));
-//   }
-// }
-async function verifyEmailCode(req, res, next) {
+// All email-adjacent verification now goes through JSON + OTP codes —
+// no HTML pages left in this module.
+async function confirmEmailChange(req, res, next) {
   try {
-    const result = await agentService.verifyEmailCode(
-      req.agent.id,
-      req.body.code,
-    );
-    res.json(result);
+    const agent = await agentService.confirmEmailChange(req.agent.id, req.body.code, req);
+    res.json({ agent });
   } catch (err) {
     next(err);
   }
-}
-
-async function confirmEmailChange(req, res) {
-  const { token } = req.query;
-  if (!token) {
-    return res
-      .status(400)
-      .send(
-        statusPage({
-          title: "Missing confirmation token",
-          message: "This link is missing its code.",
-          ok: false,
-        }),
-      );
-  }
-  try {
-    await agentService.confirmEmailChange(token, req);
-    res.send(
-      statusPage({
-        title: "Email updated",
-        message: "Your new email is confirmed. You can close this page.",
-        ok: true,
-      }),
-    );
-  } catch (err) {
-    res
-      .status(err.statusCode || 400)
-      .send(
-        statusPage({
-          title: "Confirmation failed",
-          message: err.message,
-          ok: false,
-        }),
-      );
-  }
-}
-
-function resetPasswordPage(req, res) {
-  const { token } = req.query;
-  if (!token) {
-    return res
-      .status(400)
-      .send(
-        '<p style="font-family:sans-serif;text-align:center;margin-top:80px;">Missing reset token.</p>',
-      );
-  }
-
-  res.send(`
-    <!doctype html>
-    <html>
-      <head><meta charset="utf-8"><title>Reset your Frental password</title></head>
-      <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f9fafb;">
-        <div style="width: 100%; max-width: 360px; padding: 32px; background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-          <h2 style="color: #111827; margin-top: 0;">Reset your password</h2>
-          <form id="reset-form">
-            <input type="password" id="newPassword" placeholder="New password (min 8 characters)" minlength="8" required
-              style="width: 100%; box-sizing: border-box; padding: 10px 12px; margin-bottom: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;" />
-            <button type="submit"
-              style="width: 100%; padding: 10px; background: #186339; color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
-              Set new password
-            </button>
-          </form>
-          <p id="result" style="margin-top: 16px; font-size: 14px;"></p>
-        </div>
-        <script>
-          document.getElementById('reset-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const newPassword = document.getElementById('newPassword').value;
-            const resultEl = document.getElementById('result');
-            resultEl.textContent = 'Saving…';
-            try {
-              const res = await fetch('/api/agents/reset-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: ${JSON.stringify(token)}, newPassword }),
-              });
-              const data = await res.json();
-              if (!res.ok) throw new Error(data.error || 'Something went wrong');
-              resultEl.style.color = '#186339';
-              resultEl.textContent = 'Password updated — you can close this page and log in with your new password.';
-              document.getElementById('reset-form').style.display = 'none';
-            } catch (err) {
-              resultEl.style.color = '#dc2626';
-              resultEl.textContent = err.message;
-            }
-          });
-        </script>
-      </body>
-    </html>
-  `);
 }
 
 module.exports = {
@@ -326,12 +196,11 @@ module.exports = {
   publicProfile,
   updateProfile,
   changePassword,
+  verifyEmailCode,
   resendVerification,
   requestEmailChange,
+  confirmEmailChange,
   forgotPassword,
   resetPassword,
   setAccountStatus,
-  verifyEmailCode,
-  confirmEmailChange,
-  resetPasswordPage,
 };

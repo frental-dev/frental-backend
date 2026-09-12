@@ -7,10 +7,9 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "worker": "node src/jobs/mediaWorker.js",
+    "seed": "node prisma/seed.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "db:seed": "node prisma/seed.js",
-    "seed": "node prisma/seed.js"
+    "prisma:migrate": "prisma migrate dev"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

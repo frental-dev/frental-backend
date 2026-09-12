@@ -4,9 +4,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 
 const { ensureBuckets } = require('./config/minio');
-const mediaRoutes = require('./modules/media/media.routes');
 const agentRoutes = require('./modules/agents/agent.routes');
 const propertyRoutes = require('./modules/properties/property.routes');
+const mediaRoutes = require('./modules/media/media.routes');
 const clientRoutes = require('./modules/clients/client.routes');
 const viewingRoutes = require('./modules/viewings/viewing.routes');
 const marketplaceRoutes = require('./modules/marketplace/marketplace.routes');
@@ -15,9 +15,6 @@ const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
 
 const app = express();
 
-// Render (and most PaaS) sit behind a reverse proxy — without this, req.ip
-// returns the proxy's IP for every request, breaking rate limiting and
-// auth-event IP logging. `1` trusts exactly one hop, matching Render's setup.
 app.set('trust proxy', 1);
 
 app.use(helmet());
@@ -26,16 +23,20 @@ app.use(express.json());
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
-app.use('/api', mediaRoutes);
-app.use('/api', agentRoutes);
-app.use('/api', propertyRoutes);
-app.use('/api', clientRoutes);
-app.use('/api', viewingRoutes);
-app.use('/api', marketplaceRoutes);
-app.use('/api', leadRoutes);
-app.use('/api', dashboardRoutes);
+// All API routes are versioned under /api/v1. A future breaking change
+// gets mounted as /api/v2 alongside this, rather than silently breaking
+// every existing client (mobile app, marketplace website) on deploy.
+const API_PREFIX = '/api/v1';
 
-// Central error handler — every controller calls next(err) into this
+app.use(API_PREFIX, agentRoutes);
+app.use(API_PREFIX, propertyRoutes);
+app.use(API_PREFIX, mediaRoutes);
+app.use(API_PREFIX, clientRoutes);
+app.use(API_PREFIX, viewingRoutes);
+app.use(API_PREFIX, marketplaceRoutes);
+app.use(API_PREFIX, leadRoutes);
+app.use(API_PREFIX, dashboardRoutes);
+
 app.use((err, req, res, next) => {
   console.error(err);
   const status = err.statusCode || 500;
@@ -48,10 +49,6 @@ async function start() {
   await ensureBuckets();
   app.listen(PORT, () => console.log(`Frental API running on port ${PORT}`));
 
-  // On paid setups, run `npm run worker` as its own process/service instead.
-  // On Render's free tier (no Background Worker service available), set
-  // RUN_WORKER_INLINE=true so the same web service also consumes the media
-  // processing queue — one process doing both jobs, which is fine at low volume.
   if (process.env.RUN_WORKER_INLINE === 'true') {
     require('./jobs/mediaWorker');
     console.log('Media worker running in-process (RUN_WORKER_INLINE=true)');

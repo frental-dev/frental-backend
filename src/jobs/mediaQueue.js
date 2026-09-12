@@ -1,9 +1,6 @@
 const IORedis = require('ioredis');
 const { Queue } = require('bullmq');
 
-// Local Docker Redis: plain host/port, no auth.
-// Render/Upstash/managed Redis: REDIS_URL includes auth + TLS (redis:// or rediss://).
-// BullMQ requires maxRetriesPerRequest: null when handed a pre-built ioredis instance.
 const connection = process.env.REDIS_URL
   ? new IORedis(process.env.REDIS_URL, { maxRetriesPerRequest: null })
   : new IORedis({
@@ -14,13 +11,6 @@ const connection = process.env.REDIS_URL
 
 const mediaQueue = new Queue('media-processing', { connection });
 
-/**
- * Enqueue a media record for post-upload processing:
- * - images: generate Cloudinary thumbnail/variants
- * - videos: extract duration, optionally generate a poster frame
- * Keeps the upload request fast — the client gets a 202 immediately,
- * this runs in the worker process.
- */
 async function enqueueMediaProcessing(mediaId) {
   await mediaQueue.add(
     'process-media',

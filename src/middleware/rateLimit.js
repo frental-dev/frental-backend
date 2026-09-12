@@ -1,20 +1,82 @@
+// const rateLimit = require("express-rate-limit");
+
+// const jsonRateLimitHandler = (req, res) => {
+//   res
+//     .status(429)
+//     .json({ error: "Too many requests — please try again later." });
+// };
+
+// const signupLimiter = rateLimit({
+//   windowMs: 60 * 60 * 1000,
+//   limit: 10,
+//   standardHeaders: true,
+//   legacyHeaders: false,
+//   handler: jsonRateLimitHandler,
+// });
+
+// const loginLimiter = rateLimit({
+//   windowMs: 60 * 60 * 1000,
+//   limit: 5,
+//   standardHeaders: true,
+//   legacyHeaders: false,
+//   handler: jsonRateLimitHandler,
+// });
+
+// const passwordResetLimiter = rateLimit({
+//   windowMs: 60 * 60 * 1000,
+//   limit: 5,
+//   standardHeaders: true,
+//   legacyHeaders: false,
+//   handler: jsonRateLimitHandler,
+// });
+
+// const resendVerificationLimiter = rateLimit({
+//   windowMs: 60 * 60 * 1000,
+//   limit: 3,
+//   standardHeaders: true,
+//   legacyHeaders: false,
+//   keyGenerator: (req) => req.agent?.id || req.ip,
+//   handler: jsonRateLimitHandler,
+// });
+
+// const verifyCodeLimiter = rateLimit({
+//   windowMs: 60 * 60 * 1000,
+//   limit: 10,
+//   standardHeaders: true,
+//   legacyHeaders: false,
+//   keyGenerator: (req) => req.agent?.id || req.ip,
+//   handler: jsonRateLimitHandler,
+// });
+
+// module.exports = {
+//   signupLimiter,
+//   loginLimiter,
+//   passwordResetLimiter,
+//   resendVerificationLimiter,
+//   verifyCodeLimiter,
+// };
+
 const rateLimit = require("express-rate-limit");
 
-// In-memory store — correct for a single Render instance. If this ever runs
-// as multiple instances/dynos, each instance tracks its own counts
-// independently, meaning the effective limit is (limit × instance count).
-// Fix at that point with a shared store (e.g. rate-limit-redis against the
-// same Redis instance already used for BullMQ) — not needed at current scale.
-
 const jsonRateLimitHandler = (req, res) => {
-  res
-    .status(429)
-    .json({ error: "Too many requests — please try again later." });
+  res.status(429).json({
+    error: "Too many requests — please try again later.",
+  });
+};
+
+const isTest = process.env.AUTH_TEST_MODE === "true";
+
+const limits = {
+  signup: isTest ? 100 : 10,
+  login: isTest ? 100 : 5,
+  passwordReset: isTest ? 100 : 5,
+  resendVerification: isTest ? 100 : 3,
+  verifyCode: isTest ? 100 : 10,
 };
 
 const signupLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 10,
+  limit: limits.signup,
   standardHeaders: true,
   legacyHeaders: false,
   handler: jsonRateLimitHandler,
@@ -22,7 +84,7 @@ const signupLimiter = rateLimit({
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 5,
+  limit: limits.login,
   standardHeaders: true,
   legacyHeaders: false,
   handler: jsonRateLimitHandler,
@@ -30,18 +92,15 @@ const loginLimiter = rateLimit({
 
 const passwordResetLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 5,
+  limit: limits.passwordReset,
   standardHeaders: true,
   legacyHeaders: false,
   handler: jsonRateLimitHandler,
 });
 
-// Keyed by agent id (authenticated route), not IP — one agent shouldn't be
-// able to spam their own inbox via multiple IPs, and this shouldn't
-// penalize other agents sharing an office/IP.
 const resendVerificationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 3,
+  limit: limits.resendVerification,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.agent?.id || req.ip,
@@ -50,7 +109,7 @@ const resendVerificationLimiter = rateLimit({
 
 const verifyCodeLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 10,
+  limit: limits.verifyCode,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.agent?.id || req.ip,

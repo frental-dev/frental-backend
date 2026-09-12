@@ -12,7 +12,6 @@ const BUCKETS = {
   PROPERTY_MEDIA: process.env.MINIO_BUCKET || 'frental-media',
 };
 
-// Ensures required buckets exist. Call once on server boot.
 async function ensureBuckets() {
   for (const bucket of Object.values(BUCKETS)) {
     const exists = await minioClient.bucketExists(bucket).catch(() => false);

@@ -1,17 +1,16 @@
 /**
- * Seed script — populates the database with realistic sample data so you can
- * test every module (Agents, Properties, Clients, Viewings, Marketplace, Leads)
- * without manually creating records via Postman first.
+ * Seeds the database with demo data so you can test every module without
+ * manually creating records first. Wipes and recreates on every run — safe
+ * to re-run.
  *
  * Run: npm run seed
- * Safe to re-run: it wipes existing data in dependency order before reseeding.
  */
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 
 const prisma = new PrismaClient();
 
-const SEED_PASSWORD = 'password123'; // same password for every seeded agent, for easy testing
+const SEED_PASSWORD = 'password123';
 
 async function main() {
   console.log('Clearing existing data...');
@@ -20,221 +19,196 @@ async function main() {
   await prisma.media.deleteMany();
   await prisma.client.deleteMany();
   await prisma.property.deleteMany();
+  await prisma.refreshToken.deleteMany();
+  await prisma.authEvent.deleteMany();
   await prisma.agent.deleteMany();
+
+  console.log('Seeding Frental demo data...\n');
 
   const passwordHash = await bcrypt.hash(SEED_PASSWORD, 10);
 
-  console.log('Creating agents...');
-  const [victor, aisha] = await Promise.all([
-    prisma.agent.create({
-      data: {
-        name: 'Victor Kamau',
-        phone: '0700111222',
-        whatsapp: '0700111222',
-        email: 'victor@frental.test',
-        passwordHash,
-        publicSlug: 'victor-kamau',
-        bio: 'House-hunting agent covering Kilimani and Lavington.',
-        subscriptionTier: 'PRO',
-        isVerified: true,
-      },
-    }),
-    prisma.agent.create({
-      data: {
-        name: 'Aisha Noor',
-        phone: '0700333444',
-        whatsapp: '0700333444',
-        email: 'aisha@frental.test',
-        passwordHash,
-        publicSlug: 'aisha-noor',
-        bio: 'Specialist in bedsitters and one-bedrooms around Kasarani.',
-        subscriptionTier: 'FREE',
-        isVerified: false,
-      },
-    }),
-  ]);
+  const victor = await prisma.agent.create({
+    data: {
+      name: 'Victor Kamau',
+      phone: '0700111222',
+      whatsapp: '0700111222',
+      email: 'victor@frental.test',
+      emailVerified: true,
+      passwordHash,
+      publicSlug: 'victor-kamau',
+      bio: 'House-hunting agent covering Kilimani and Lavington.',
+      isVerified: true,
+    },
+  });
 
-  console.log('Creating properties...');
-  const properties = await Promise.all([
-    prisma.property.create({
-      data: {
-        agentId: victor.id,
-        title: 'Modern 2BR Apartment',
-        description: 'Bright 2-bedroom unit with balcony, close to Yaya Centre.',
-        rent: 45000,
-        deposit: 45000,
-        houseType: 'TWO_BEDROOM',
-        estate: 'Kilimani',
-        city: 'Nairobi',
-        features: ['parking', 'borehole water', 'gym'],
-        approxLat: -1.2921,
-        approxLng: 36.7833,
-        status: 'AVAILABLE',
-      },
-    }),
-    prisma.property.create({
-      data: {
-        agentId: victor.id,
-        title: 'Spacious 3BR Maisonette',
-        description: 'Gated community, 24hr security, DSQ included.',
-        rent: 90000,
-        deposit: 180000,
-        houseType: 'MAISONETTE',
-        estate: 'Lavington',
-        city: 'Nairobi',
-        features: ['dsq', 'garden', 'cctv'],
-        approxLat: -1.2794,
-        approxLng: 36.7687,
-        status: 'AVAILABLE',
-      },
-    }),
-    prisma.property.create({
-      data: {
-        agentId: victor.id,
-        title: 'Cozy Bedsitter',
-        rent: 12000,
-        deposit: 12000,
-        houseType: 'BEDSITTER',
-        estate: 'Kilimani',
-        city: 'Nairobi',
-        features: ['water included'],
-        status: 'TAKEN',
-      },
-    }),
-    prisma.property.create({
-      data: {
-        agentId: aisha.id,
-        title: 'Affordable 1BR near Thika Road',
-        rent: 18000,
-        deposit: 18000,
-        houseType: 'ONE_BEDROOM',
-        estate: 'Kasarani',
-        city: 'Nairobi',
-        features: ['parking', 'tiled floors'],
-        status: 'AVAILABLE',
-      },
-    }),
-    prisma.property.create({
-      data: {
-        agentId: aisha.id,
-        title: 'Bedsitter with Balcony',
-        rent: 10000,
-        deposit: 10000,
-        houseType: 'BEDSITTER',
-        estate: 'Kasarani',
-        city: 'Nairobi',
-        features: [],
-        status: 'HOLD',
-      },
-    }),
-  ]);
+  const aisha = await prisma.agent.create({
+    data: {
+      name: 'Aisha Noor',
+      phone: '0700333444',
+      whatsapp: '0700333444',
+      email: 'aisha@frental.test',
+      emailVerified: true,
+      passwordHash,
+      publicSlug: 'aisha-noor',
+      bio: 'Specializing in Ruaka and Kasarani listings.',
+      isVerified: false,
+    },
+  });
 
-  console.log('Creating clients...');
-  const [johnClient, , samClient] = await Promise.all([
-    prisma.client.create({
-      data: {
-        agentId: victor.id,
-        name: 'John Mwangi',
-        phone: '0711000111',
-        budgetMin: 35000,
-        budgetMax: 50000,
-        houseType: 'TWO_BEDROOM',
-        preferredEstate: 'Kilimani',
-        status: 'VIEWING_SCHEDULED',
-        notes: 'Prefers ground floor units.',
-      },
-    }),
-    prisma.client.create({
-      data: {
-        agentId: victor.id,
-        name: 'Mary Wambui',
-        phone: '0711000222',
-        budgetMin: 80000,
-        budgetMax: 100000,
-        houseType: 'MAISONETTE',
-        preferredEstate: 'Lavington',
-        status: 'NEW',
-      },
-    }),
-    prisma.client.create({
-      data: {
-        agentId: aisha.id,
-        name: 'Sam Otieno',
-        phone: '0711000333',
-        budgetMin: 15000,
-        budgetMax: 20000,
-        houseType: 'ONE_BEDROOM',
-        preferredEstate: 'Kasarani',
-        status: 'CLOSED',
-      },
-    }),
-  ]);
+  const properties = [];
+  for (const data of [
+    {
+      agentId: victor.id,
+      title: 'Modern 2BR in Kilimani',
+      description: 'Bright, recently renovated unit with a balcony overlooking the estate.',
+      rent: 45000,
+      deposit: 45000,
+      houseType: 'TWO_BEDROOM',
+      bedrooms: 2,
+      bathrooms: 2,
+      estate: 'Kilimani',
+      features: ['parking', 'borehole', 'gym'],
+    },
+    {
+      agentId: victor.id,
+      title: 'Cozy Bedsitter near Yaya Centre',
+      rent: 18000,
+      deposit: 18000,
+      houseType: 'BEDSITTER',
+      bedrooms: 0,
+      bathrooms: 1,
+      estate: 'Kilimani',
+      features: ['wifi'],
+    },
+    {
+      agentId: victor.id,
+      title: 'Spacious 3BR Maisonette Lavington',
+      rent: 90000,
+      deposit: 90000,
+      houseType: 'MAISONETTE',
+      bedrooms: 3,
+      bathrooms: 3,
+      estate: 'Lavington',
+      features: ['garden', 'parking', 'dsq'],
+      status: 'TAKEN',
+    },
+    {
+      agentId: aisha.id,
+      title: '1BR Apartment in Ruaka',
+      rent: 22000,
+      deposit: 22000,
+      houseType: 'ONE_BEDROOM',
+      bedrooms: 1,
+      bathrooms: 1,
+      estate: 'Ruaka',
+      features: ['parking'],
+    },
+    {
+      agentId: aisha.id,
+      title: 'Bungalow in Kasarani',
+      rent: 35000,
+      deposit: 35000,
+      houseType: 'BUNGALOW',
+      bedrooms: 3,
+      bathrooms: 2,
+      estate: 'Kasarani',
+      features: ['compound', 'parking'],
+    },
+  ]) {
+    properties.push(await prisma.property.create({ data }));
+  }
 
-  console.log('Creating viewings...');
-  await Promise.all([
-    prisma.viewing.create({
-      data: {
+  const clients = [];
+  for (const data of [
+    {
+      agentId: victor.id,
+      name: 'Brian Mwangi',
+      phone: '0733333333',
+      budgetMin: 30000,
+      budgetMax: 50000,
+      houseType: 'TWO_BEDROOM',
+      preferredEstate: 'Kilimani',
+    },
+    {
+      agentId: victor.id,
+      name: 'Faith Njeri',
+      phone: '0744444444',
+      budgetMin: 15000,
+      budgetMax: 20000,
+      houseType: 'BEDSITTER',
+      preferredEstate: 'Kilimani',
+    },
+    {
+      agentId: aisha.id,
+      name: 'Dennis Kiptoo',
+      phone: '0755555555',
+      budgetMin: 20000,
+      budgetMax: 25000,
+      houseType: 'ONE_BEDROOM',
+      preferredEstate: 'Ruaka',
+    },
+  ]) {
+    clients.push(await prisma.client.create({ data }));
+  }
+
+  await prisma.viewing.create({
+    data: {
+      agentId: victor.id,
+      clientId: clients[0].id,
+      propertyId: properties[0].id,
+      scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+      status: 'SCHEDULED',
+      notes: 'Client wants to check the kitchen and water pressure.',
+    },
+  });
+  await prisma.viewing.create({
+    data: {
+      agentId: aisha.id,
+      clientId: clients[2].id,
+      propertyId: properties[3].id,
+      scheduledAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      status: 'COMPLETED',
+      notes: 'Went well, client is considering it.',
+    },
+  });
+
+  await prisma.client.update({
+    where: { id: clients[0].id },
+    data: { status: 'VIEWING_SCHEDULED' },
+  });
+
+  await prisma.lead.createMany({
+    data: [
+      {
         agentId: victor.id,
-        clientId: johnClient.id,
         propertyId: properties[0].id,
-        scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-        status: 'SCHEDULED',
-        notes: 'Meeting at the gate at 2pm.',
+        source: 'WHATSAPP',
+        name: 'Interested Person',
+        phone: '0766666666',
+        message: 'Is this still available?',
       },
-    }),
-    prisma.viewing.create({
-      data: {
-        agentId: aisha.id,
-        clientId: samClient.id,
-        propertyId: properties[3].id,
-        scheduledAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-        status: 'COMPLETED',
-        notes: 'Client loved it — proceeded to close.',
-      },
-    }),
-  ]);
-
-  console.log('Creating leads...');
-  await Promise.all([
-    prisma.lead.create({
-      data: {
+      {
         agentId: victor.id,
         propertyId: properties[1].id,
-        source: 'WHATSAPP',
-        status: 'NEW',
-        name: 'Peter Njoroge',
-        phone: '0722000111',
-        message: 'Is the Lavington maisonette still available?',
-      },
-    }),
-    prisma.lead.create({
-      data: {
-        agentId: victor.id,
-        propertyId: properties[0].id,
         source: 'MARKETPLACE',
-        status: 'CONTACTED',
-        name: 'Grace Achieng',
-        phone: '0722000222',
-        message: 'Interested, can I view this weekend?',
+        name: 'Anonymous Browser',
+        message: 'Can I get more photos?',
       },
-    }),
-    prisma.lead.create({
-      data: {
+      {
         agentId: aisha.id,
         propertyId: properties[3].id,
         source: 'TIKTOK',
-        status: 'NEW',
-        name: 'Kevin Otieno',
-        phone: '0722000333',
-        message: 'Saw your video, is it still there?',
+        name: 'TikTok Viewer',
+        phone: '0777777777',
       },
-    }),
-  ]);
+    ],
+  });
 
-  console.log('\nSeed complete.\n');
-  console.log(`Test agents (all use password: ${SEED_PASSWORD})`);
-  console.log(`  ${victor.name} — phone: ${victor.phone} — public page: GET /api/agents/public/${victor.publicSlug}`);
-  console.log(`  ${aisha.name} — phone: ${aisha.phone} — public page: GET /api/agents/public/${aisha.publicSlug}`);
+  console.log('Seed complete.\n');
+  console.log('Demo agent logins (POST /api/agents/login, phone OR email):');
+  console.log(`  phone=${victor.phone} / email=${victor.email}  password=${SEED_PASSWORD}  (${victor.name}, slug: ${victor.publicSlug})`);
+  console.log(`  phone=${aisha.phone} / email=${aisha.email}  password=${SEED_PASSWORD}  (${aisha.name}, slug: ${aisha.publicSlug})`);
+  console.log('\nNote: no Media records were seeded — upload real files via Postman to test that pipeline.');
 }
 
 main()

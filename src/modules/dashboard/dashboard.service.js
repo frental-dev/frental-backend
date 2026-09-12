@@ -4,35 +4,14 @@ const prisma = new PrismaClient();
 const RECENT_PROPERTIES_LIMIT = 5;
 const ACTIVITY_DAYS = 7;
 
-function startOfDay(date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
+function startOfDay(date) { const d = new Date(date); d.setHours(0, 0, 0, 0); return d; }
+function endOfDay(date) { const d = new Date(date); d.setHours(23, 59, 59, 999); return d; }
+function dateKey(date) { return new Date(date).toISOString().split('T')[0]; }
 
-function endOfDay(date) {
-  const d = new Date(date);
-  d.setHours(23, 59, 59, 999);
-  return d;
-}
-
-function dateKey(date) {
-  return new Date(date).toISOString().split('T')[0];
-}
-
-// Agents are Kenya-based — format viewing times in Africa/Nairobi regardless
-// of what timezone the server itself runs in.
 function formatNairobiTime(date) {
-  return new Intl.DateTimeFormat('en-KE', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'Africa/Nairobi',
-  }).format(new Date(date));
+  return new Intl.DateTimeFormat('en-KE', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Nairobi' }).format(new Date(date));
 }
 
-// Builds a zero-filled { date, count } series for the last `days` days, so
-// the mobile app can render a chart without gaps on days with zero activity.
 function groupCountsByDay(records, dateField, days) {
   const counts = {};
   const today = startOfDay(new Date());
@@ -56,73 +35,38 @@ async function getDashboard(agentId) {
   activitySince.setDate(activitySince.getDate() - (ACTIVITY_DAYS - 1));
 
   const [
-    totalProperties,
-    totalClients,
-    todaysViewingsCount,
-    newLeadsCount,
-    recentProperties,
-    todaysViewings,
-    propertiesForActivity,
-    viewingsForActivity,
+    totalProperties, totalClients, todaysViewingsCount, newLeadsCount,
+    recentProperties, todaysViewings, propertiesForActivity, viewingsForActivity,
   ] = await Promise.all([
     prisma.property.count({ where: { agentId } }),
     prisma.client.count({ where: { agentId } }),
     prisma.viewing.count({ where: { agentId, scheduledAt: { gte: todayStart, lte: todayEnd } } }),
     prisma.lead.count({ where: { agentId, status: 'NEW' } }),
-
     prisma.property.findMany({
-      where: { agentId },
-      orderBy: { createdAt: 'desc' },
-      take: RECENT_PROPERTIES_LIMIT,
+      where: { agentId }, orderBy: { createdAt: 'desc' }, take: RECENT_PROPERTIES_LIMIT,
       include: { media: { where: { status: 'ACTIVE' }, orderBy: { sortOrder: 'asc' }, take: 1 } },
     }),
-
     prisma.viewing.findMany({
-      where: { agentId, scheduledAt: { gte: todayStart, lte: todayEnd } },
-      orderBy: { scheduledAt: 'asc' },
+      where: { agentId, scheduledAt: { gte: todayStart, lte: todayEnd } }, orderBy: { scheduledAt: 'asc' },
       include: {
         client: { select: { id: true, name: true } },
         property: { select: { id: true, title: true, estate: true } },
       },
     }),
-
-    prisma.property.findMany({
-      where: { agentId, createdAt: { gte: activitySince } },
-      select: { createdAt: true },
-    }),
-    prisma.viewing.findMany({
-      where: { agentId, createdAt: { gte: activitySince } },
-      select: { createdAt: true },
-    }),
+    prisma.property.findMany({ where: { agentId, createdAt: { gte: activitySince } }, select: { createdAt: true } }),
+    prisma.viewing.findMany({ where: { agentId, createdAt: { gte: activitySince } }, select: { createdAt: true } }),
   ]);
 
   return {
-    summary: {
-      totalProperties,
-      totalClients,
-      todaysViewings: todaysViewingsCount,
-      newLeads: newLeadsCount,
-    },
-
+    summary: { totalProperties, totalClients, todaysViewings: todaysViewingsCount, newLeads: newLeadsCount },
     recentProperties: recentProperties.map((p) => ({
-      id: p.id,
-      title: p.title,
-      rent: p.rent,
-      estate: p.estate,
-      city: p.city,
-      status: p.status,
+      id: p.id, title: p.title, rent: p.rent, estate: p.estate, city: p.city, status: p.status,
       thumbnail: p.media[0]?.thumbnailUrl || p.media[0]?.url || null,
     })),
-
     todaysViewings: todaysViewings.map((v) => ({
-      id: v.id,
-      time: formatNairobiTime(v.scheduledAt),
-      scheduledAt: v.scheduledAt, // full ISO too, in case the app wants to reformat itself
-      client: v.client,
-      property: v.property,
-      status: v.status, // SCHEDULED | COMPLETED | CANCELLED | NO_SHOW — no CONFIRMED in the schema
+      id: v.id, time: formatNairobiTime(v.scheduledAt), scheduledAt: v.scheduledAt,
+      client: v.client, property: v.property, status: v.status,
     })),
-
     activity: {
       properties: groupCountsByDay(propertiesForActivity, 'createdAt', ACTIVITY_DAYS),
       viewings: groupCountsByDay(viewingsForActivity, 'createdAt', ACTIVITY_DAYS),

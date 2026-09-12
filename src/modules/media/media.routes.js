@@ -5,17 +5,8 @@ const requireAuth = require('../../middleware/auth');
 
 const router = express.Router();
 
-// Upload up to 10 files (images/videos) for a property
-router.post(
-  '/properties/:propertyId/media',
-  requireAuth,
-  upload.array('files', 10),
-  enforcePerTypeLimits,
-  controller.upload
-);
-
+router.post('/properties/:propertyId/media', requireAuth, upload.array('files', 10), enforcePerTypeLimits, controller.upload);
 router.get('/properties/:propertyId/media', requireAuth, controller.list);
-
 router.delete('/media/:mediaId', requireAuth, controller.remove);
 
 module.exports = router;
