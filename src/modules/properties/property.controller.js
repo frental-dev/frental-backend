@@ -44,4 +44,21 @@ async function remove(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { create, getOne, listMine, update, updateStatus, remove };
+async function search(req, res, next) {
+  try {
+    const properties = await propertyService.searchAgentProperties(req.agent.id, req.query.query);
+    res.json({ properties });
+  } catch (err) {
+    // Validation errors (400, e.g. missing query) already carry the right
+    // message — pass those through unchanged. Anything unexpected gets the
+    // exact wording the Android spec asks for, rather than a raw internal
+    // error message reaching the client.
+    if (err.statusCode) return next(err);
+    console.error('[properties] search failed:', err);
+    const wrapped = new Error('Failed to execute property search.');
+    wrapped.statusCode = 500;
+    next(wrapped);
+  }
+}
+
+module.exports = { create, getOne, listMine, update, updateStatus, remove, search };

@@ -85,4 +85,39 @@ async function deleteProperty(propertyId, agentId) {
   return { success: true };
 }
 
-module.exports = { createProperty, getProperty, listAgentProperties, updateProperty, setStatus, deleteProperty };
+/**
+ * Case-insensitive partial match on title/estate/city, scoped to the
+ * agent's own properties (any status — this is an internal search tool
+ * for the agent, not the public marketplace, so TAKEN/HOLD listings are
+ * still findable). Powers the Android app's property search screen.
+ */
+async function searchAgentProperties(agentId, query) {
+  if (!query || !query.trim()) {
+    const err = new Error('query parameter is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return prisma.property.findMany({
+    where: {
+      agentId,
+      OR: [
+        { title: { contains: query, mode: 'insensitive' } },
+        { estate: { contains: query, mode: 'insensitive' } },
+        { city: { contains: query, mode: 'insensitive' } },
+      ],
+    },
+    select: { id: true, title: true, estate: true, city: true, rent: true },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+module.exports = {
+  createProperty,
+  getProperty,
+  listAgentProperties,
+  updateProperty,
+  setStatus,
+  deleteProperty,
+  searchAgentProperties,
+};
