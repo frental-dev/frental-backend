@@ -9,7 +9,12 @@ const connection = process.env.REDIS_URL
       maxRetriesPerRequest: null,
     });
 
-const mediaQueue = new Queue('media-processing', { connection });
+const QUEUE_PREFIX = process.env.QUEUE_PREFIX || 'frental-local';
+
+const mediaQueue = new Queue('media-processing', {
+  connection,
+  prefix: QUEUE_PREFIX,
+});
 
 async function enqueueMediaProcessing(mediaId) {
   await mediaQueue.add(
@@ -24,4 +29,9 @@ async function enqueueMediaProcessing(mediaId) {
   );
 }
 
-module.exports = { mediaQueue, connection, enqueueMediaProcessing };
+module.exports = {
+  mediaQueue,
+  connection,
+  enqueueMediaProcessing,
+  QUEUE_PREFIX,
+};

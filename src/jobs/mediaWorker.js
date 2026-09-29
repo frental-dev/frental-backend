@@ -2,7 +2,8 @@ const { Worker } = require('bullmq');
 const { PrismaClient } = require('@prisma/client');
 const { minioClient } = require('../config/minio');
 const cloudinary = require('../config/cloudinary');
-const { connection } = require('./mediaQueue');
+// const { connection } = require('./mediaQueue');
+const { connection, QUEUE_PREFIX } = require('./mediaQueue');
 
 const prisma = new PrismaClient();
 
@@ -29,7 +30,12 @@ async function processMedia(job) {
   const { mediaId } = job.data;
 
   const media = await prisma.media.findUnique({ where: { id: mediaId } });
-  if (!media) return;
+  if (!media) {
+  console.warn(
+    `[media-worker] media ${mediaId} not found in this environment's DB — possible wrong queue/database`
+  );
+  return;
+}
 
   if (media.type === 'VIDEO') {
     await prisma.media.update({
@@ -67,7 +73,14 @@ async function processMedia(job) {
   }
 }
 
-const worker = new Worker('media-processing', processMedia, { connection, concurrency: 5 });
+// const worker = new Worker('media-processing', processMedia, { connection, concurrency: 5 });
+const worker = new Worker('media-processing', processMedia, {
+  connection,
+  prefix: QUEUE_PREFIX,
+  concurrency: 5,
+});
+
+console.log(`[media-worker] listening on prefix "${QUEUE_PREFIX}"`);
 
 worker.on('failed', (job, err) => {
   console.error(`[media-worker] job ${job.id} failed after retries:`, err.message);
