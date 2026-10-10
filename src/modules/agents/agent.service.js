@@ -302,6 +302,9 @@ async function logoutAll(agentId, req) {
     where: { agentId, revokedAt: null },
     data: { revokedAt: new Date() },
   });
+  // Per the FCM spec: logging out everywhere should stop push delivery to
+  // every device too, not just invalidate their sessions.
+  await prisma.agentDeviceToken.deleteMany({ where: { agentId } });
   await logAuthEvent({ agentId, type: 'LOGOUT_ALL', req });
   return { success: true };
 }
@@ -659,6 +662,47 @@ async function setAccountStatus(targetAgentId, status, req) {
   return toPublicAgent(agent);
 }
 
+// ---------------------------------------------------------------------
+// FCM device tokens (push notifications)
+// ---------------------------------------------------------------------
+
+/**
+ * Upsert by fcmToken, not by (agentId, deviceType) — a token uniquely
+ * identifies one app install on one device, and re-registering the same
+ * token (e.g. on every app foreground, which is a reasonable client-side
+ * strategy) should just refresh lastUsedAt rather than create duplicates.
+ * Also reassigns agentId if the same device logs in as a different agent
+ * (e.g. a shared/demo device, or a reinstall under a new account) —
+ * otherwise the old agent would keep receiving pushes meant for the new one.
+ */
+async function registerFcmToken(agentId, { fcmToken, deviceType, deviceModel, appVersion }) {
+  await prisma.agentDeviceToken.upsert({
+    where: { fcmToken },
+    create: {
+      agentId,
+      fcmToken,
+      deviceType: deviceType || 'ANDROID',
+      deviceModel,
+      appVersion,
+    },
+    update: {
+      agentId,
+      deviceType: deviceType || 'ANDROID',
+      deviceModel,
+      appVersion,
+      lastUsedAt: new Date(),
+    },
+  });
+  return { message: 'FCM token registered successfully' };
+}
+
+async function unregisterFcmToken(agentId, fcmToken) {
+  // Scoped to agentId so one agent can't unregister another's device by
+  // guessing/replaying a token string that isn't theirs.
+  await prisma.agentDeviceToken.deleteMany({ where: { agentId, fcmToken } });
+  return { message: 'FCM token unregistered successfully' };
+}
+
 module.exports = {
   signup,
   login,
@@ -679,4 +723,6 @@ module.exports = {
   requestPasswordReset,
   resetPassword,
   setAccountStatus,
+  registerFcmToken,
+  unregisterFcmToken,
 };

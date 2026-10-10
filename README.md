@@ -362,7 +362,97 @@ web service manually instead with `RUN_WORKER_INLINE=true`.
 
 ---
 
-## 6. Known limitations
+## 6. Push notifications (FCM)
+
+Agents get push notifications on the Android app via Firebase Cloud
+Messaging. Opt-in: set `FIREBASE_SERVICE_ACCOUNT_JSON` (the full service
+account JSON as a one-line string). Unset, every trigger logs and no-ops,
+and nothing else is affected.
+
+**Endpoints** (both Bearer auth):
+
+| Method | Path | Body |
+|---|---|---|
+| POST | `/api/v1/agents/fcm-token` | `{ fcmToken, deviceType?, deviceModel?, appVersion? }`. Upserts by token, so re-registering the same token only refreshes `lastUsedAt`. If the same device registers under a different agent, the token moves to the new agent. |
+| DELETE | `/api/v1/agents/fcm-token` | `{ fcmToken }`. Scoped to the requesting agent, so you can't unregister someone else's device. |
+
+`POST /agents/logout-all` also deletes every device token for that agent.
+
+**Payload rules** (`src/services/notificationService.js`): data-only, with
+**no top-level `notification` key**. Every value in `data` is a string.
+Tokens FCM reports as invalid or unregistered are deleted automatically.
+
+**Triggers wired in:**
+- `NEW_LEAD`: public marketplace form (the main case, since it's someone
+  else's action) and manually logged leads
+- `VIEWING_SCHEDULED`: when a viewing is created
+- `PROPERTY_STATUS_CHANGED`: only when the status actually changes
+
+Not wired in: `VIEWING_REMINDER` (the spec said to skip the cron job for
+now), `LEAD_CONVERTED`, and `SYSTEM_ALERT`. The helper is reusable, so
+each of these is one call to `sendNotificationToAgent`.
+
+**Known gap: `unreadCount` is a stand-in.** The FCM spec assumes a
+notification inbox with read/unread tracking, but no such table exists. The
+value sent is currently the agent's count of `NEW` leads (the same number
+the dashboard shows). It is not a real unread-notification count. If the
+Android app tracks unread counts locally in Room, it may want to ignore
+this field.
+
+**Setup:** Firebase Console → Project Settings → Service Accounts →
+Generate New Private Key → paste the whole JSON file as one line into
+`FIREBASE_SERVICE_ACCOUNT_JSON` on the web service. The worker doesn't
+need it.
+
+## 7. Observability
+
+**Request logging**: every request logs `method path status duration_ms ip`
+to stdout (`src/middleware/requestLogger.js`) — never bodies, so passwords/
+tokens/OTP codes never end up in logs. Render captures stdout automatically;
+no setup needed to see these in Render's own log viewer.
+
+**Health check**: `GET /health` now actually confirms the database is
+reachable (`SELECT 1`), not just that the process is alive — returns `503`
+with `"status": "degraded"` if the DB check fails. Point an external uptime
+monitor (e.g. [UptimeRobot](https://uptimerobot.com), free tier, 5-minute
+interval) at this URL rather than the root `/` — this is what actually
+proves the service is usable, not just that Express is listening.
+
+**Version endpoint**: `GET /api/v1/version` (public) returns
+`{ name, version, environment, commit }` — `commit` is Render's own
+`RENDER_GIT_COMMIT` env var, set automatically on every deploy with no
+config needed. Useful for confirming exactly what's live on a given
+environment when debugging whether a fix actually rolled out.
+
+**Crash safety net**: `process.on('uncaughtException', ...)` and
+`unhandledRejection` handlers log loudly rather than letting the process
+die silently with no record of why. These exist specifically because this
+project runs across prod/staging/dev sharing infrastructure — a crash in
+one environment with no logged cause is much harder to diagnose than one
+with a clear `[fatal]` line in the logs.
+
+**Error tracking (Sentry, optional)**: set `SENTRY_DSN` and every unhandled
+error (5xx responses, uncaught exceptions, unhandled rejections) reports
+to Sentry automatically — see `src/config/sentry.js`. Deliberately does
+**not** report expected 4xx errors (validation failures, 404s) as
+incidents, only genuine 5xx/crashes. Unset by default; everything above
+(logging, health check, version endpoint) works identically either way.
+
+**Recommended for a prod/staging/dev setup specifically**: set a distinct
+`SENTRY_DSN` per environment (or the same Sentry project, distinguished by
+the `environment` tag, which is already set from `NODE_ENV`) — otherwise a
+noisy dev environment's errors drown out real prod incidents in the same
+inbox.
+
+## 8. Versioning
+
+`package.json`'s `version` field is what `/api/v1/version` reports. Bump it
+and add an entry to `CHANGELOG.md` for any change worth tracking —
+especially anything that changes a response shape or a required field,
+since those are the changes that'd justify eventually cutting `/api/v2`
+rather than changing `/api/v1` in place.
+
+## 9. Known limitations
 
 - Rate limiting is in-memory — fine for one instance, needs a shared store
   (e.g. Redis-backed) if ever run as multiple instances

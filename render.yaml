@@ -38,6 +38,12 @@ services:
         value: Frental
       - key: GOOGLE_CLIENT_ID
         sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: QUEUE_PREFIX
+        sync: false
       - key: REDIS_URL
         fromService:
           name: frental-redis
@@ -72,6 +78,10 @@ services:
       - key: CLOUDINARY_API_KEY
         sync: false
       - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: QUEUE_PREFIX
         sync: false
       - key: REDIS_URL
         fromService:

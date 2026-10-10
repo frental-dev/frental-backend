@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const { sendNotificationToAgent } = require('../../services/notificationService');
 const prisma = new PrismaClient();
 
 const VALID_SOURCES = ['WHATSAPP', 'MARKETPLACE', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK', 'DIRECT'];
@@ -22,7 +23,22 @@ async function createPublicLead({ propertyId, source, name, phone, message }) {
     err.statusCode = 404;
     throw err;
   }
-  return prisma.lead.create({ data: { agentId: property.agentId, propertyId, source, name, phone, message } });
+  const lead = await prisma.lead.create({
+    data: { agentId: property.agentId, propertyId, source, name, phone, message },
+  });
+
+  // Fire-and-forget — a push failing should never slow down or break lead
+  // creation. sendNotificationToAgent already catches its own errors.
+  sendNotificationToAgent(property.agentId, {
+    title: 'New Lead Received',
+    body: `${name || 'A prospective client'} is interested in ${property.title}`,
+    type: 'NEW_LEAD',
+    entityId: lead.id,
+    entityType: 'LEAD',
+    clickAction: `frental://leads/${lead.id}`,
+  });
+
+  return lead;
 }
 
 async function createManualLead(agentId, input) {
@@ -32,15 +48,31 @@ async function createManualLead(agentId, input) {
     err.statusCode = 400;
     throw err;
   }
+  let property = null;
   if (propertyId) {
-    const property = await prisma.property.findFirst({ where: { id: propertyId, agentId } });
+    property = await prisma.property.findFirst({ where: { id: propertyId, agentId } });
     if (!property) {
       const err = new Error('Property not found or does not belong to this agent');
       err.statusCode = 404;
       throw err;
     }
   }
-  return prisma.lead.create({ data: { agentId, propertyId, source, name, phone, message } });
+
+  const lead = await prisma.lead.create({ data: { agentId, propertyId, source, name, phone, message } });
+
+  // Lower-value than the public-form trigger (the agent is the one logging
+  // this, so it's not "news" to them) — still useful for cross-device sync,
+  // e.g. logged on a tablet, pushed to the phone they're carrying.
+  sendNotificationToAgent(agentId, {
+    title: 'New Lead Logged',
+    body: property ? `${name || 'A lead'} — interested in ${property.title}` : `${name || 'A new lead'} was logged`,
+    type: 'NEW_LEAD',
+    entityId: lead.id,
+    entityType: 'LEAD',
+    clickAction: `frental://leads/${lead.id}`,
+  });
+
+  return lead;
 }
 
 async function listLeads(agentId, { status, source } = {}) {

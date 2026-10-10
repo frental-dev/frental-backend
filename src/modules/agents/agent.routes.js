@@ -14,6 +14,8 @@ const {
   refreshSchema,
   verifyEmailCodeSchema,
   confirmEmailChangeSchema,
+  registerFcmTokenSchema,
+  unregisterFcmTokenSchema,
 } = require('../../validation/agent.schemas');
 const {
   signupLimiter,
@@ -52,6 +54,8 @@ router.post('/agents/me/resend-verification', requireAuth, resendVerificationLim
 router.post('/agents/logout-all', requireAuth, controller.logoutAll);
 router.get('/agents/me/sessions', requireAuth, controller.listSessions);
 router.delete('/agents/me/sessions/:sessionId', requireAuth, controller.revokeSession);
+router.post('/agents/fcm-token', requireAuth, validateBody(registerFcmTokenSchema), controller.registerFcmToken);
+router.delete('/agents/fcm-token', requireAuth, validateBody(unregisterFcmTokenSchema), controller.unregisterFcmToken);
 
 // --- Admin only ---
 router.patch('/agents/:agentId/status', requireAuth, requireRole('ADMIN'), controller.setAccountStatus);
