@@ -28,6 +28,11 @@ enum AgentStatus {
   DISABLED
 }
 
+enum DeviceType {
+  ANDROID
+  IOS
+}
+
 enum AuthEventType {
   SIGNUP
   LOGIN_SUCCESS
@@ -158,8 +163,26 @@ model Agent {
   leads         Lead[]
   refreshTokens RefreshToken[]
   authEvents    AuthEvent[]
+  deviceTokens  AgentDeviceToken[]
 
   @@index([publicSlug])
+}
+
+model AgentDeviceToken {
+  id          String     @id @default(cuid())
+  agentId     String
+  agent       Agent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  fcmToken    String     @unique
+  deviceType  DeviceType @default(ANDROID)
+  deviceModel String?
+  appVersion  String?
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  lastUsedAt  DateTime   @default(now())
+
+  @@index([agentId])
 }
 
 model RefreshToken {

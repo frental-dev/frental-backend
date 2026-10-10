@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const { sendNotificationToAgent } = require('../../services/notificationService');
 const prisma = new PrismaClient();
 
 const UPDATE_FIELDS = ['scheduledAt', 'notes'];
@@ -24,6 +25,7 @@ async function assertOwnership(agentId, { clientId, propertyId }) {
     err.statusCode = 404;
     throw err;
   }
+  return { client, property };
 }
 
 async function createViewing(agentId, input) {
@@ -33,13 +35,23 @@ async function createViewing(agentId, input) {
     err.statusCode = 400;
     throw err;
   }
-  await assertOwnership(agentId, { clientId, propertyId });
+  const { client, property } = await assertOwnership(agentId, { clientId, propertyId });
 
   const viewing = await prisma.viewing.create({
     data: { agentId, clientId, propertyId, scheduledAt: new Date(scheduledAt), notes },
   });
 
   await prisma.client.updateMany({ where: { id: clientId, status: 'NEW' }, data: { status: 'VIEWING_SCHEDULED' } });
+
+  sendNotificationToAgent(agentId, {
+    title: 'Viewing Scheduled',
+    body: `Viewing with ${client.name} for ${property.title} on ${new Date(scheduledAt).toLocaleString()}`,
+    type: 'VIEWING_SCHEDULED',
+    entityId: viewing.id,
+    entityType: 'VIEWING',
+    clickAction: `frental://viewings/${viewing.id}`,
+  });
+
   return viewing;
 }
 

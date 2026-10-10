@@ -183,6 +183,24 @@ async function confirmEmailChange(req, res, next) {
   }
 }
 
+async function registerFcmToken(req, res, next) {
+  try {
+    const result = await agentService.registerFcmToken(req.agent.id, req.body);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function unregisterFcmToken(req, res, next) {
+  try {
+    const result = await agentService.unregisterFcmToken(req.agent.id, req.body.fcmToken);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   signup,
   login,
@@ -203,4 +221,6 @@ module.exports = {
   forgotPassword,
   resetPassword,
   setAccountStatus,
+  registerFcmToken,
+  unregisterFcmToken,
 };
