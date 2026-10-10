@@ -69,6 +69,17 @@ const confirmEmailChangeSchema = z.object({
   code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code'),
 });
 
+const registerFcmTokenSchema = z.object({
+  fcmToken: z.string().min(1),
+  deviceType: z.enum(['ANDROID', 'IOS']).optional(),
+  deviceModel: z.string().optional(),
+  appVersion: z.string().optional(),
+});
+
+const unregisterFcmTokenSchema = z.object({
+  fcmToken: z.string().min(1),
+});
+
 module.exports = {
   signupSchema,
   loginSchema,
@@ -80,4 +91,6 @@ module.exports = {
   refreshSchema,
   verifyEmailCodeSchema,
   confirmEmailChangeSchema,
+  registerFcmTokenSchema,
+  unregisterFcmTokenSchema,
 };
