@@ -57,8 +57,8 @@ function getFirebaseAdmin() {
     return admin;
   } catch (err) {
     console.error(
-      "[fcm] failed to initialize Firebase Admin — push notifications disabled:",
-      err.message,
+      "[fcm] Firebase Admin initialization failed:",
+      err.stack || err.message,
     );
     return null;
   }
