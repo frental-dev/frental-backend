@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const { sendNotificationToAgent } = require('../../services/notificationService');
 const prisma = new PrismaClient();
 
 const CREATE_FIELDS = [
@@ -71,7 +72,23 @@ async function setStatus(propertyId, agentId, status) {
     err.statusCode = 404;
     throw err;
   }
-  return prisma.property.update({ where: { id: propertyId }, data: { status } });
+
+  const updated = await prisma.property.update({ where: { id: propertyId }, data: { status } });
+
+  // Only notify on an actual change — re-saving the same status (e.g. a
+  // double-tap) shouldn't push a notification about nothing.
+  if (existing.status !== status) {
+    sendNotificationToAgent(agentId, {
+      title: 'Property Status Updated',
+      body: `${existing.title} is now ${status}`,
+      type: 'PROPERTY_STATUS_CHANGED',
+      entityId: propertyId,
+      entityType: 'PROPERTY',
+      clickAction: `frental://properties/${propertyId}`,
+    });
+  }
+
+  return updated;
 }
 
 async function deleteProperty(propertyId, agentId) {
