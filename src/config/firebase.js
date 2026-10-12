@@ -12,33 +12,46 @@
 let admin = null;
 
 function getFirebaseAdmin() {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-
-  console.info("[fcm] service account validation", {
-    projectIdPresent: Boolean(serviceAccount.project_id),
-    clientEmailPresent: Boolean(serviceAccount.client_email),
-    privateKeyPresent: Boolean(serviceAccount.private_key),
-    privateKeyType: typeof serviceAccount.private_key,
-    privateKeyLength:
-      typeof serviceAccount.private_key === "string"
-        ? serviceAccount.private_key.length
-        : null,
-  });
-
   if (admin) return admin;
-  if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) return null;
+
+  // Fix 1: Guard early. If the env var is missing or empty, exit gracefully immediately.
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    return null;
+  }
 
   try {
-    const firebaseAdmin = require("firebase-admin");
+    // Fix 2: Wrap JSON parsing inside the try-catch block in case the JSON string is malformed
     const serviceAccount = JSON.parse(
       process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
     );
 
+    console.info("[fcm] service account validation", {
+      projectIdPresent: Boolean(serviceAccount?.project_id),
+      clientEmailPresent: Boolean(serviceAccount?.client_email),
+      privateKeyPresent: Boolean(serviceAccount?.private_key),
+      privateKeyType: typeof serviceAccount?.private_key,
+      privateKeyLength:
+        typeof serviceAccount?.private_key === "string"
+          ? serviceAccount.private_key.length
+          : null,
+    });
+
+    const firebaseAdmin = require("firebase-admin");
+
     if (!firebaseAdmin.apps.length) {
+      // Fix 3: Handle escaped newlines in the stringified JSON private key
+      if (serviceAccount.private_key) {
+        serviceAccount.private_key = serviceAccount.private_key.replace(
+          /\\n/g,
+          "\n",
+        );
+      }
+
       firebaseAdmin.initializeApp({
         credential: firebaseAdmin.credential.cert(serviceAccount),
       });
     }
+
     admin = firebaseAdmin;
     console.info("[fcm] Firebase Admin initialized");
     return admin;
