@@ -9,52 +9,54 @@
  * project (Brevo, Google Sign-In, Sentry) degrades the same way, and local
  * dev / a misconfigured environment shouldn't crash on boot over this.
  */
-let admin = null;
+
+let firebaseAdmin = null;
 
 function getFirebaseAdmin() {
-  if (admin) return admin;
+  if (firebaseAdmin) return firebaseAdmin;
 
-  // Fix 1: Guard early. If the env var is missing or empty, exit gracefully immediately.
-  if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    return null;
-  }
+  const rawConfig = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!rawConfig) return null;
 
   try {
-    // Fix 2: Wrap JSON parsing inside the try-catch block in case the JSON string is malformed
-    const serviceAccount = JSON.parse(
-      process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
-    );
+    const serviceAccount = JSON.parse(rawConfig);
 
-    console.info("[fcm] service account validation", {
-      projectIdPresent: Boolean(serviceAccount?.project_id),
-      clientEmailPresent: Boolean(serviceAccount?.client_email),
-      privateKeyPresent: Boolean(serviceAccount?.private_key),
-      privateKeyType: typeof serviceAccount?.private_key,
-      privateKeyLength:
-        typeof serviceAccount?.private_key === "string"
-          ? serviceAccount.private_key.length
-          : null,
-    });
-
-    const firebaseAdmin = require("firebase-admin");
-
-    if (!firebaseAdmin.apps.length) {
-      // Fix 3: Handle escaped newlines in the stringified JSON private key
-      if (serviceAccount.private_key) {
-        serviceAccount.private_key = serviceAccount.private_key.replace(
-          /\\n/g,
-          "\n",
-        );
-      }
-
-      firebaseAdmin.initializeApp({
-        credential: firebaseAdmin.credential.cert(serviceAccount),
-      });
+    if (
+      !serviceAccount.project_id ||
+      !serviceAccount.client_email ||
+      !serviceAccount.private_key
+    ) {
+      throw new Error(
+        "Service account must contain project_id, client_email and private_key",
+      );
     }
 
-    admin = firebaseAdmin;
-    console.info("[fcm] Firebase Admin initialized");
-    return admin;
+    const { getApps, initializeApp, cert } = require("firebase-admin/app");
+    const { getMessaging } = require("firebase-admin/messaging");
+
+    // Reuse an existing default app, or initialize it.
+    const existingApp = getApps().find((app) => app.name === "[DEFAULT]");
+
+    const app =
+      existingApp ||
+      initializeApp({
+        credential: cert({
+          ...serviceAccount,
+          private_key: serviceAccount.private_key.replace(/\\n/g, "\n"),
+        }),
+      });
+
+    // Preserve the interface used by notificationService.js.
+    firebaseAdmin = {
+      app,
+      messaging: () => getMessaging(app),
+    };
+
+    console.info("[fcm] Firebase Admin initialized", {
+      projectId: serviceAccount.project_id,
+    });
+
+    return firebaseAdmin;
   } catch (err) {
     console.error(
       "[fcm] Firebase Admin initialization failed:",
