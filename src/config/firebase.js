@@ -12,21 +12,41 @@
 let admin = null;
 
 function getFirebaseAdmin() {
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+
+  console.info("[fcm] service account validation", {
+    projectIdPresent: Boolean(serviceAccount.project_id),
+    clientEmailPresent: Boolean(serviceAccount.client_email),
+    privateKeyPresent: Boolean(serviceAccount.private_key),
+    privateKeyType: typeof serviceAccount.private_key,
+    privateKeyLength:
+      typeof serviceAccount.private_key === "string"
+        ? serviceAccount.private_key.length
+        : null,
+  });
+
   if (admin) return admin;
   if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) return null;
 
   try {
-    const firebaseAdmin = require('firebase-admin');
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    const firebaseAdmin = require("firebase-admin");
+    const serviceAccount = JSON.parse(
+      process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
+    );
 
     if (!firebaseAdmin.apps.length) {
-      firebaseAdmin.initializeApp({ credential: firebaseAdmin.credential.cert(serviceAccount) });
+      firebaseAdmin.initializeApp({
+        credential: firebaseAdmin.credential.cert(serviceAccount),
+      });
     }
     admin = firebaseAdmin;
-    console.info('[fcm] Firebase Admin initialized');
+    console.info("[fcm] Firebase Admin initialized");
     return admin;
   } catch (err) {
-    console.error('[fcm] failed to initialize Firebase Admin — push notifications disabled:', err.message);
+    console.error(
+      "[fcm] failed to initialize Firebase Admin — push notifications disabled:",
+      err.message,
+    );
     return null;
   }
 }
